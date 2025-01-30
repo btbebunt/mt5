@@ -48,7 +48,7 @@ const createMessage = (data) => {
 // Notion 데이터베이스 업데이트
 const updateNotion = async (data) => {
   const properties = {
-    'Order ID': { number: data.order || 0 },
+    'Order ID': { number: data.position || 0 },
     'Action': { select: { name: data.action }},
     'Symbol': { title: [{ text: { content: data.symbol || '' }}] },  // Symbol as a title property
     'Volume': { number: data.volume || 0 },  // Ensure 'Volume' is a number property in your database
