@@ -232,7 +232,7 @@ export default async (req, res) => {
       await updateNotion({
         ...data,
         action,
-        messageId: data.messageId || telegramMessageId
+        // messageId: data.messageId || telegramMessageId
       });
 
       res.status(200).json({
