@@ -11,13 +11,12 @@ const notion = new Client({ auth: NOTION_API_KEY });
 const createMessage = (data) => {
   const templates = {
     open: `
-📈 *New Position Opened* 📈
+📈 *Оролт хийлээ* 📈
 ┌────────────────
-│ ▪ Order: #${data.position || 'N/A'}
-│ ▪ Symbol: ${data.symbol || 'N/A'} (${data.direction || 'N/A'})
-│ ▪ Volume: ${(data.volume ?? 0).toFixed(2)} lots
-│ ▪ Price: ${(data.price ?? 0).toFixed(5)}
-│ ▪ Balance: $${(data.balance ?? 0).toFixed(2)}
+│ ▪ Хослол: ${data.symbol || 'N/A'} (${data.direction || 'N/A'})
+│ ▪ Үнэ: ${(data.price ?? 0).toFixed(5)}
+│ ▪ Лот: ${(data.volume ?? 0).toFixed(2)}
+│ ▪ Данс: $${(data.balance ?? 0).toFixed(2)}
 └────────────────`,
 
     update: `
@@ -30,11 +29,10 @@ const createMessage = (data) => {
 └────────────────`,
 
     close: `
-📉 *Position Closed* 📉
+📉 *Оролт хаалаа* 📉
 ┌────────────────
-│ ▪ Order: #${data.position || 'N/A'}
-│ ▪ Profit: $${(data.profit ?? 0).toFixed(2)}
-│ ▪ Balance: $${(data.balance ?? 0).toFixed(2)}
+│ ▪ Ашиг: $${(data.profit ?? 0).toFixed(2)}
+│ ▪ Данс: $${(data.balance ?? 0).toFixed(2)}
 └────────────────`
   };
 
