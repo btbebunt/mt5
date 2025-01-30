@@ -54,10 +54,9 @@ const updateNotion = async (data) => {
     'TP': { number: data.tp || 0 },
     'Profit': { number: data.profit || 0 },
     'Balance': { number: data.balance },
-    'Message ID': { number: data.messageId || 0 }  // Ensure 'Message ID' is a number property
+    'Message ID': { number: data.messageId || 0 }
   };
 
-  // Log data before saving to Notion
   console.log(`Saving to Notion for Order ID: ${data.position}, messageId: ${data.messageId}`);
 
   await notion.pages.create({
@@ -66,20 +65,18 @@ const updateNotion = async (data) => {
   });
 };
 
-
-// Function to get Message ID from Notion based on Order ID (position)
+// Function to get Message ID from Notion based on Order ID
 const getMessageIdFromNotion = async (orderId) => {
   const response = await notion.databases.query({
     database_id: NOTION_DB_ID,
     filter: {
       property: 'Order ID',
       number: {
-        equals: orderId  // Ensure the filter structure is correct
+        equals: orderId
       }
     }
   });
 
-  // Log the response to see the results
   console.log(`Notion query response for Order ID ${orderId}:`, response);
 
   if (response.results.length > 0) {
@@ -92,19 +89,15 @@ const getMessageIdFromNotion = async (orderId) => {
   return null;
 };
 
-
 const handleCloseAction = async (data) => {
   try {
-    // Fetch the message ID from Notion for the correct order ID
     const replyMessageId = await getMessageIdFromNotion(data.position);
     
-    // If the message ID doesn't exist, prevent sending a "close" message
     if (!replyMessageId) {
       console.log(`No previous message found for Order: #${data.position}`);
       return;
     }
 
-    // Create the close message for Telegram
     const message = createMessage({
       action: 'close',
       position: data.position,
@@ -112,22 +105,20 @@ const handleCloseAction = async (data) => {
       balance: data.balance,
     });
 
-    // Send the close message to Telegram, replying to the original message if it exists
     await axios.post(
       `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
       {
         chat_id: TELEGRAM_CHAT_ID,
         text: message,
         parse_mode: 'Markdown',
-        reply_to_message_id: replyMessageId || undefined,  // Only reply if message ID exists
+        reply_to_message_id: replyMessageId || undefined,
       }
     );
 
-    // Update Notion with the close action details
     await updateNotion({
       ...data,
       action: 'close',
-      messageId: replyMessageId,  // Include message ID from Telegram response
+      messageId: replyMessageId,
     });
 
   } catch (error) {
@@ -135,30 +126,23 @@ const handleCloseAction = async (data) => {
   }
 };
 
-
-// Modify the API handler to capture the actual Telegram message ID
 export default async (req, res) => {
   try {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     const { action, chat_id, reply_to, ...data } = req.body;
     
-    // Ensure valid action
     if (!['open', 'update', 'close'].includes(action)) {
       throw new Error('Invalid action type');
     }
 
-    // Log to check if the action is correctly recognized
     console.log(`Received action: ${action}, data: `, data);
 
-    // Handle message creation based on action type
     const message = createMessage({ action, ...data });
 
-    // Handle 'open' or 'update' actions
     if (action === 'open' || action === 'update') {
       const replyToMessageId = action === 'open' ? undefined : reply_to;
 
-      // Send the message to Telegram
       const tgResponse = await axios.post(
         `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
         {
@@ -167,28 +151,24 @@ export default async (req, res) => {
           parse_mode: 'Markdown',
           reply_to_message_id: replyToMessageId,
         },
-        { timeout: 5000 }  // Timeout added for reliability
+        { timeout: 5000 }
       );
 
-      // Capture the message_id from the Telegram response
       const telegramMessageId = tgResponse.data.result.message_id;
 
-      // Update Notion with the message_id from Telegram
       await updateNotion({
         ...data,
         action,
-        messageId: telegramMessageId  // Save the actual message_id from Telegram
+        messageId: telegramMessageId
       });
 
       res.status(200).json({
         status: 'success',
-        message_id: telegramMessageId  // Return the correct message_id
+        message_id: telegramMessageId
       });
     }
 
-    // Handle 'close' action specifically
     if (action === 'close') {
-      // Debug log to check when close action is triggered
       console.log(`Close action triggered for Order: #${data.position}`);
       
       await handleCloseAction(data);
@@ -196,7 +176,6 @@ export default async (req, res) => {
     }
 
   } catch (error) {
-    // Enhanced error logging
     console.error('Full error stack:', error.stack);
     console.error('Request body:', req.body);
     
@@ -207,4 +186,3 @@ export default async (req, res) => {
     });
   }
 };
-
