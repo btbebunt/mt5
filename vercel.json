@@ -1,0 +1,11 @@
+{
+    "version": 2,
+    "builds": [{
+        "src": "pages/api/trade.js",
+        "use": "@vercel/node"
+    }],
+    "routes": [{
+        "src": "/(.*)",
+        "dest": "pages/api/trade.js"
+    }]
+}
