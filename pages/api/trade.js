@@ -70,7 +70,7 @@ const updateNotion = async (data) => {
     'Price': { number: data.price || 0 },
     'SL': { number: data.sl || 0 },
     'TP': { number: data.tp || 0 },
-    'Profit (Pips)': { number: data.profit || 0 },  // Profit in pips
+    'Profit': { number: data.profit || 0 },  // Profit in pips
     'Balance': { number: data.balance },
     'Message ID': { number: data.messageId || 0 }
   };
