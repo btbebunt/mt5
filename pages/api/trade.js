@@ -67,46 +67,49 @@ const updateNotion = async (data) => {
 };
 
 
-// 수정된 API 핸들러 (에러 처리 강화)
+// Modify the API handler (send the 'update' action properly)
 export default async (req, res) => {
   try {
-    // CORS 설정 추가
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     const { action, chat_id, reply_to, ...data } = req.body;
     
-    // 필수 필드 검증 추가
+    // Ensure valid action
     if (!['open', 'update', 'close'].includes(action)) {
       throw new Error('Invalid action type');
     }
 
-    // 텔레그램 메시지 전송
+    // Handle message creation based on action type
     const message = createMessage({ action, ...data });
+
+    // Determine if reply_to_message_id is needed for 'update' and 'close'
+    const replyToMessageId = action === 'open' ? undefined : reply_to;
+
+    // Send message to Telegram
     const tgResponse = await axios.post(
       `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
       {
         chat_id: TELEGRAM_CHAT_ID,
         text: message,
         parse_mode: 'Markdown',
-        reply_to_message_id: action === 'open' ? undefined : reply_to
+        reply_to_message_id: replyToMessageId
       },
-      { timeout: 5000 } // 타임아웃 추가
+      { timeout: 5000 }  // Timeout added for reliability
     );
-    
 
-    // Notion 업데이트
+    // Update Notion
     await updateNotion({
       ...data,
       action,
-      messageId: tgResponse.data.result.message_id
+      messageId: tgResponse.data.result.message_id  // Save the message ID
     });
 
-    res.status(200).json({ 
+    res.status(200).json({
       status: 'success',
       message_id: tgResponse.data.result.message_id 
     });
   } catch (error) {
-    // 상세 에러 로깅
+    // Enhanced error logging
     console.error('Full error stack:', error.stack);
     console.error('Request body:', req.body);
     
