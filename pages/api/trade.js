@@ -45,8 +45,18 @@ const createMessage = (data) => {
     }
   };
 
-  return templates[data.action](data);
+  // Instead of calling templates[data.action] as a function, ensure it's treated as a template string
+  const template = templates[data.action];
+
+  if (typeof template === 'function') {
+    return template(data); // If it's a function, execute it with `data`
+  } else if (typeof template === 'string') {
+    return template; // If it's a string, return it directly
+  } else {
+    throw new Error(`Invalid action type: ${data.action}`); // Handle invalid action types
+  }
 };
+
 
 const updateNotion = async (data) => {
   const properties = {
