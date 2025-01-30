@@ -52,15 +52,43 @@ const updateNotion = async (data) => {
     'TP': { number: data.tp || 0 },
     'Profit': { number: data.profit || 0 },
     'Balance': { number: data.balance },
-    'Message ID': { number: data.messageId || 0 }
+    'Message ID': { number: data.messageId || 0 },
+    ...(data.outPrice !== undefined && { 'Outprice': { number: data.outPrice || 0 }}) // Closing price handling
   };
 
   console.log(`Saving to Notion for Order ID: ${data.position}, messageId: ${data.messageId}`);
 
-  await notion.pages.create({
-    parent: { database_id: NOTION_DB_ID },
-    properties
+  // Try to find an existing page to update
+  const response = await notion.databases.query({
+    database_id: NOTION_DB_ID,
+    filter: {
+      property: 'Order ID',
+      number: {
+        equals: data.position
+      }
+    }
   });
+
+  if (response.results.length > 0) {
+    const pageId = response.results[0].id;
+    console.log(`Found existing page with Order ID: ${data.position}, updating...`);
+
+    // Update existing page
+    await notion.pages.update({
+      page_id: pageId,
+      properties,
+    });
+
+    console.log(`Page updated successfully for Order ID: ${data.position}`);
+  } else {
+    console.log(`No existing page found for Order ID: ${data.position}, creating new one.`);
+
+    // If no existing page, create a new one
+    await notion.pages.create({
+      parent: { database_id: NOTION_DB_ID },
+      properties,
+    });
+  }
 };
 
 // Function to get Message ID from Notion based on Order ID
