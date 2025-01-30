@@ -82,11 +82,18 @@ const getMessageIdFromNotion = async (orderId) => {
   return null;
 };
 
-// Function to handle 'close' action and update Notion
 const handleCloseAction = async (data) => {
   try {
+    // Fetch the message ID from Notion for the correct order ID
     const replyMessageId = await getMessageIdFromNotion(data.position);
     
+    // If the message ID doesn't exist, prevent sending a "close" message
+    if (!replyMessageId) {
+      console.log(`No previous message found for Order: #${data.position}`);
+      return;
+    }
+
+    // Create the close message for Telegram
     const message = createMessage({
       action: 'close',
       position: data.position,
@@ -111,10 +118,12 @@ const handleCloseAction = async (data) => {
       action: 'close',
       messageId: replyMessageId,  // Include message ID from Telegram response
     });
+
   } catch (error) {
     console.error('Error handling close action:', error);
   }
 };
+
 
 // Modify the API handler to capture the actual Telegram message ID
 export default async (req, res) => {
