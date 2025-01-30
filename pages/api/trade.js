@@ -8,60 +8,46 @@ const NOTION_DB_ID = process.env.NOTION_DB_ID;
 const TELEGRAM_CHAT_ID = -1002304096819;
 const notion = new Client({ auth: NOTION_API_KEY });
 
-// Create message based on action
 const createMessage = (data) => {
-  let message = '';
-  
-  switch (data.action) {
-    case 'update':
-      // Handle SL, TP, or both updates
-      if (data.sl && data.tp) {
-        message = `
-🔄 SL&TP тохируулсан 🔄
-┌────────────────
-│ ▪️ SL: ${data.sl}
-│ ▪️ TP: ${data.tp}
-└────────────────`;
-      } else if (data.sl) {
-        message = `
-🔄 SL тохируулсан 🔄
-┌────────────────
-│ ▪️ SL: ${data.sl}
-└────────────────`;
-      } else if (data.tp) {
-        message = `
-🔄 TP тохируулсан 🔄
-┌────────────────
-│ ▪️ TP: ${data.tp}
-└────────────────`;
-      }
-      break;
-
-    case 'close':
-      message = `
-📉 *Оролт хаалаа* 📉
-┌────────────────
-│ ▪ Ашиг: $${(data.profit ?? 0).toFixed(2)}
-│ ▪ Данс: $${(data.balance ?? 0).toFixed(2)}
-└────────────────`;
-      break;
-      
-    case 'open':
-    default:
-      message = `
+  const templates = {
+    open: `
 📈 *Оролт хийлээ* 📈
 ┌────────────────
 │ ▪ Хослол: ${data.symbol || 'N/A'} (${data.direction || 'N/A'})
 │ ▪ Үнэ: ${(data.price ?? 0).toFixed(5)}
 │ ▪ Лот: ${(data.volume ?? 0).toFixed(2)}
 │ ▪ Данс: $${(data.balance ?? 0).toFixed(2)}
+└────────────────`,
+
+    update: (data) => {
+      const sl = data.sl ? `SL: ${(data.sl).toFixed(5)}` : '';
+      const tp = data.tp ? `TP: ${(data.tp).toFixed(5)}` : '';
+      const message = [
+        "🔄 *Position Updated* 🔄",
+        "┌────────────────",
+        `│ ▪ Order: #${data.position || 'N/A'}`,
+        sl ? `│ ▪ ${sl}` : '',
+        tp ? `│ ▪ ${tp}` : '',
+        `│ ▪ Balance: $${(data.balance ?? 0).toFixed(2)}`,
+        "└────────────────"
+      ].filter(Boolean).join("\n");
+
+      return message;
+    },
+
+    close: (data) => {
+      return `
+📉 *Оролт хаалаа* 📉
+┌────────────────
+│ ▪ Ашиг: $${(data.profit ?? 0).toFixed(2)}
+│ ▪ Данс: $${(data.balance ?? 0).toFixed(2)}
 └────────────────`;
-      break;
-  }
-  return message;
+    }
+  };
+
+  return templates[data.action](data);
 };
 
-// Update Notion database record
 const updateNotion = async (data) => {
   const properties = {
     'Order ID': { number: data.position || 0 },
@@ -75,19 +61,19 @@ const updateNotion = async (data) => {
     'Profit': { number: data.profit || 0 },
     'Balance': { number: data.balance },
     'Message ID': { number: data.messageId || 0 },
-    'OutPrice': { number: data.outprice || 0 } // Closing price
+    ...(data.outprice && { 'OutPrice': { number: data.outprice }})
   };
 
   console.log(`Updating Notion for Order ID: ${data.position}, messageId: ${data.messageId}`);
 
   await notion.pages.update({
-    page_id: data.pageId, // Update the existing page instead of creating a new one
+    page_id: data.notionPageId,
     properties
   });
 };
 
-// Get Message ID from Notion for the given Order ID
-const getMessageIdFromNotion = async (orderId) => {
+// Function to get the Notion page ID from the Order ID
+const getNotionPageId = async (orderId) => {
   const response = await notion.databases.query({
     database_id: NOTION_DB_ID,
     filter: {
@@ -97,44 +83,49 @@ const getMessageIdFromNotion = async (orderId) => {
   });
 
   if (response.results.length > 0) {
-    return response.results[0].properties['Message ID'].number;
+    return response.results[0].id; // Return the page ID
   }
 
+  console.log(`No page found for Order ID ${orderId}`);
   return null;
 };
 
-const handleAction = async (data) => {
+const handleCloseAction = async (data) => {
   try {
-    const replyMessageId = await getMessageIdFromNotion(data.position);
+    const notionPageId = await getNotionPageId(data.position);
     
-    if (!replyMessageId) {
+    if (!notionPageId) {
       console.log(`No previous message found for Order: #${data.position}`);
       return;
     }
 
-    // Create the message based on action (open, update, close)
-    const message = createMessage(data);
+    const message = createMessage({
+      action: 'close',
+      position: data.position,
+      profit: data.profit,
+      balance: data.balance,
+    });
 
-    // Send the message to Telegram with the reply-to functionality
-    await axios.post(
+    const tgResponse = await axios.post(
       `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
       {
         chat_id: TELEGRAM_CHAT_ID,
         text: message,
         parse_mode: 'Markdown',
-        reply_to_message_id: replyMessageId || undefined,
+        reply_to_message_id: data.replyToMessageId || undefined,
       }
     );
 
-    // Update Notion with the new details
     await updateNotion({
       ...data,
-      messageId: replyMessageId,
-      pageId: data.pageId // Update the existing page with the pageId
+      action: 'close',
+      messageId: tgResponse.data.result.message_id,
+      notionPageId,
+      outprice: data.price // Store close price as `outprice`
     });
 
   } catch (error) {
-    console.error('Error handling action:', error);
+    console.error('Error handling close action:', error);
   }
 };
 
@@ -150,14 +141,59 @@ export default async (req, res) => {
 
     console.log(`Received action: ${action}, data: `, data);
 
-    if (action === 'close' || action === 'update') {
-      console.log(`Action triggered for Order: #${data.position}`);
-      await handleAction(data);
+    const message = createMessage({ action, ...data });
+
+    if (action === 'open' || action === 'update') {
+      const replyToMessageId = action === 'open' ? undefined : reply_to;
+
+      const tgResponse = await axios.post(
+        `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
+        {
+          chat_id: TELEGRAM_CHAT_ID,
+          text: message,
+          parse_mode: 'Markdown',
+          reply_to_message_id: replyToMessageId,
+        },
+        { timeout: 5000 }
+      );
+
+      const telegramMessageId = tgResponse.data.result.message_id;
+      const notionPageId = await getNotionPageId(data.position);
+
+      if (!notionPageId) {
+        // If no page exists, create a new row in Notion
+        await updateNotion({
+          ...data,
+          action,
+          messageId: telegramMessageId
+        });
+      } else {
+        // Update the existing row
+        await updateNotion({
+          ...data,
+          action,
+          messageId: telegramMessageId,
+          notionPageId
+        });
+      }
+
+      res.status(200).json({
+        status: 'success',
+        message_id: telegramMessageId
+      });
+    }
+
+    if (action === 'close') {
+      console.log(`Close action triggered for Order: #${data.position}`);
+      
+      await handleCloseAction(data);
       res.status(200).json({ status: 'success' });
     }
 
   } catch (error) {
     console.error('Full error stack:', error.stack);
+    console.error('Request body:', req.body);
+    
     res.status(500).json({
       error: 'Internal Server Error',
       details: error.message,
