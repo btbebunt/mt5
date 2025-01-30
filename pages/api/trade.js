@@ -8,6 +8,22 @@ const NOTION_DB_ID = process.env.NOTION_DB_ID;
 const TELEGRAM_CHAT_ID = -1002304096819;
 const notion = new Client({ auth: NOTION_API_KEY });
 
+// Helper function to calculate pips
+const calculatePips = (symbol, openPrice, closePrice) => {
+  let pipValue = 0;
+
+  // Check if the symbol is a major Forex pair (typically 4 decimal places)
+  if (symbol.includes("JPY")) {
+    // If it's a JPY pair, calculate with 2 decimal places
+    pipValue = (closePrice - openPrice) * 100;
+  } else {
+    // For most other pairs, calculate with 4 decimal places
+    pipValue = (closePrice - openPrice) * 10000;
+  }
+
+  return pipValue;
+};
+
 // 텔레그램 메시지 생성
 const createMessage = (data) => {
   const templates = {
@@ -36,7 +52,7 @@ const createMessage = (data) => {
 📉 *Position Closed* 📉
 ┌────────────────
 │ ▪ Order: #${data.position || 'N/A'}
-│ ▪ Profit: $${(data.profit ?? 0).toFixed(2)}
+│ ▪ Profit: ${data.profit} pips
 │ ▪ Balance: $${(data.balance ?? 0).toFixed(2)}
 └────────────────`
   };
@@ -54,9 +70,9 @@ const updateNotion = async (data) => {
     'Price': { number: data.price || 0 },
     'SL': { number: data.sl || 0 },
     'TP': { number: data.tp || 0 },
-    'Profit': { number: data.profit || 0 },
+    'Profit (Pips)': { number: data.profit || 0 },  // Profit in pips
     'Balance': { number: data.balance },
-    'Message ID': { number: data.messageId || 0 }  // Ensure 'Message ID' is a number property
+    'Message ID': { number: data.messageId || 0 }
   };
 
   await notion.pages.create({
@@ -87,12 +103,15 @@ const getMessageIdFromNotion = async (orderId) => {
 // Function to handle 'close' action and update Notion
 const handleCloseAction = async (data) => {
   try {
+    // Calculate profit in pips based on symbol and price
+    const profitInPips = calculatePips(data.symbol, data.openPrice, data.closePrice);
+
     const replyMessageId = await getMessageIdFromNotion(data.position);
     
     const message = createMessage({
       action: 'close',
       position: data.position,
-      profit: data.profit,
+      profit: profitInPips,  // Use calculated profit in pips
       balance: data.balance,
     });
 
@@ -111,6 +130,7 @@ const handleCloseAction = async (data) => {
     await updateNotion({
       ...data,
       action: 'close',
+      profit: profitInPips,  // Store profit in pips in Notion
       messageId: replyMessageId,  // Include message ID from Telegram response
     });
   } catch (error) {
