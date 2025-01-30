@@ -11,16 +11,15 @@ const notion = new Client({ auth: NOTION_API_KEY });
 const createMessage = (data) => {
   const templates = {
     open: `
-📈 *Оролт хийлээ* 📈
+📈 ${data.symbol || 'N/A'} (${data.direction || 'N/A'})  📈
 ┌────────────────
-│ ▪ Хослол: ${data.symbol || 'N/A'} (${data.direction || 'N/A'})
 │ ▪ Үнэ: ${(data.price ?? 0).toFixed(5)}
 │ ▪ Лот: ${(data.volume ?? 0).toFixed(2)}
 │ ▪ Данс: $${(data.balance ?? 0).toFixed(2)}
 └────────────────`,
 
     update: `
-🔄 *Position Updated* 🔄
+🔄 *SL & TP* 🔄
 ┌────────────────
 │ ▪ Order: #${data.position || 'N/A'}
 │ ▪ SL: ${(data.sl ?? 0).toFixed(5) || 'None'}
