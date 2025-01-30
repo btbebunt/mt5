@@ -19,45 +19,27 @@ const createMessage = (data) => {
 │ ▪ Данс: $${(data.balance ?? 0).toFixed(2)}
 └────────────────`,
 
-    update: (data) => {
-      const sl = data.sl ? `SL: ${(data.sl).toFixed(5)}` : '';
-      const tp = data.tp ? `TP: ${(data.tp).toFixed(5)}` : '';
-      const message = [
-        "🔄 *Position Updated* 🔄",
-        "┌────────────────",
-        `│ ▪ Order: #${data.position || 'N/A'}`,
-        sl ? `│ ▪ ${sl}` : '',
-        tp ? `│ ▪ ${tp}` : '',
-        `│ ▪ Balance: $${(data.balance ?? 0).toFixed(2)}`,
-        "└────────────────"
-      ].filter(Boolean).join("\n");
+    update: `
+🔄 *Position Updated* 🔄
+┌────────────────
+│ ▪ Order: #${data.position || 'N/A'}
+│ ▪ SL: ${(data.sl ?? 0).toFixed(5) || 'None'}
+│ ▪ TP: ${(data.tp ?? 0).toFixed(5) || 'None'}
+│ ▪ Balance: $${(data.balance ?? 0).toFixed(2)}
+└────────────────`,
 
-      return message;
-    },
-
-    close: (data) => {
-      return `
+    close: `
 📉 *Оролт хаалаа* 📉
 ┌────────────────
 │ ▪ Ашиг: $${(data.profit ?? 0).toFixed(2)}
 │ ▪ Данс: $${(data.balance ?? 0).toFixed(2)}
-└────────────────`;
-    }
+└────────────────`
   };
 
-  // Instead of calling templates[data.action] as a function, ensure it's treated as a template string
-  const template = templates[data.action];
-
-  if (typeof template === 'function') {
-    return template(data); // If it's a function, execute it with `data`
-  } else if (typeof template === 'string') {
-    return template; // If it's a string, return it directly
-  } else {
-    throw new Error(`Invalid action type: ${data.action}`); // Handle invalid action types
-  }
+  return templates[data.action];
 };
 
-
+// Notion 데이터베이스 업데이트
 const updateNotion = async (data) => {
   const properties = {
     'Order ID': { number: data.position || 0 },
@@ -70,41 +52,46 @@ const updateNotion = async (data) => {
     'TP': { number: data.tp || 0 },
     'Profit': { number: data.profit || 0 },
     'Balance': { number: data.balance },
-    'Message ID': { number: data.messageId || 0 },
-    ...(data.outprice && { 'OutPrice': { number: data.outprice }})
+    'Message ID': { number: data.messageId || 0 }
   };
 
-  console.log(`Updating Notion for Order ID: ${data.position}, messageId: ${data.messageId}`);
+  console.log(`Saving to Notion for Order ID: ${data.position}, messageId: ${data.messageId}`);
 
-  await notion.pages.update({
-    page_id: data.notionPageId,
+  await notion.pages.create({
+    parent: { database_id: NOTION_DB_ID },
     properties
   });
 };
 
-// Function to get the Notion page ID from the Order ID
-const getNotionPageId = async (orderId) => {
+// Function to get Message ID from Notion based on Order ID
+const getMessageIdFromNotion = async (orderId) => {
   const response = await notion.databases.query({
     database_id: NOTION_DB_ID,
     filter: {
       property: 'Order ID',
-      number: { equals: orderId }
+      number: {
+        equals: orderId
+      }
     }
   });
 
+  console.log(`Notion query response for Order ID ${orderId}:`, response);
+
   if (response.results.length > 0) {
-    return response.results[0].id; // Return the page ID
+    const messageId = response.results[0].properties['Message ID'].number;
+    console.log(`Found message ID for Order ID ${orderId}:`, messageId);
+    return messageId;
   }
 
-  console.log(`No page found for Order ID ${orderId}`);
+  console.log(`No message found for Order ID ${orderId}`);
   return null;
 };
 
 const handleCloseAction = async (data) => {
   try {
-    const notionPageId = await getNotionPageId(data.position);
+    const replyMessageId = await getMessageIdFromNotion(data.position);
     
-    if (!notionPageId) {
+    if (!replyMessageId) {
       console.log(`No previous message found for Order: #${data.position}`);
       return;
     }
@@ -116,22 +103,20 @@ const handleCloseAction = async (data) => {
       balance: data.balance,
     });
 
-    const tgResponse = await axios.post(
+    await axios.post(
       `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
       {
         chat_id: TELEGRAM_CHAT_ID,
         text: message,
         parse_mode: 'Markdown',
-        reply_to_message_id: data.replyToMessageId || undefined,
+        reply_to_message_id: replyMessageId || undefined,
       }
     );
 
     await updateNotion({
       ...data,
       action: 'close',
-      messageId: tgResponse.data.result.message_id,
-      notionPageId,
-      outprice: data.price // Store close price as `outprice`
+      messageId: replyMessageId,
     });
 
   } catch (error) {
@@ -168,24 +153,12 @@ export default async (req, res) => {
       );
 
       const telegramMessageId = tgResponse.data.result.message_id;
-      const notionPageId = await getNotionPageId(data.position);
 
-      if (!notionPageId) {
-        // If no page exists, create a new row in Notion
-        await updateNotion({
-          ...data,
-          action,
-          messageId: telegramMessageId
-        });
-      } else {
-        // Update the existing row
-        await updateNotion({
-          ...data,
-          action,
-          messageId: telegramMessageId,
-          notionPageId
-        });
-      }
+      await updateNotion({
+        ...data,
+        action,
+        messageId: telegramMessageId
+      });
 
       res.status(200).json({
         status: 'success',
