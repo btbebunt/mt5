@@ -49,14 +49,14 @@ const updateNotion = async (data) => {
   const properties = {
     'Order ID': { number: data.position || 0 },
     'Action': { select: { name: data.action }},
-    'Symbol': { title: [{ text: { content: data.symbol || '' }}] },  // Symbol as a title property
+    'Symbol': { title: [{ text: { content: data.symbol || '' }}] },
     'Volume': { number: data.volume || 0 },
     'Price': { number: data.price || 0 },
     'SL': { number: data.sl || 0 },
     'TP': { number: data.tp || 0 },
     'Profit': { number: data.profit || 0 },
     'Balance': { number: data.balance },
-    'Message ID': { number: data.messageId || 0 }  // Store the Telegram message ID
+    'Message ID': { number: data.messageId || 0 }  // Ensure 'Message ID' is a number property
   };
 
   await notion.pages.create({
@@ -65,7 +65,7 @@ const updateNotion = async (data) => {
   });
 };
 
-// Fetch the Message ID from Notion based on Order ID
+// Function to get Message ID from Notion based on Order ID (position)
 const getMessageIdFromNotion = async (orderId) => {
   const response = await notion.databases.query({
     database_id: NOTION_DB_ID,
@@ -78,13 +78,45 @@ const getMessageIdFromNotion = async (orderId) => {
   });
 
   if (response.results.length > 0) {
-    // Extract the message ID from Notion data
     return response.results[0].properties['Message ID'].number;
   }
 
-  return null;  // No message found for this order ID
+  return null;
 };
 
+// Function to handle 'close' action and update Notion
+const handleCloseAction = async (data) => {
+  try {
+    const replyMessageId = await getMessageIdFromNotion(data.position);
+    
+    const message = createMessage({
+      action: 'close',
+      position: data.position,
+      profit: data.profit,
+      balance: data.balance,
+    });
+
+    // Send the close message to Telegram, replying to the original message if it exists
+    await axios.post(
+      `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
+      {
+        chat_id: TELEGRAM_CHAT_ID,
+        text: message,
+        parse_mode: 'Markdown',
+        reply_to_message_id: replyMessageId || undefined,  // Only reply if message ID exists
+      }
+    );
+
+    // Update Notion with the close action details
+    await updateNotion({
+      ...data,
+      action: 'close',
+      messageId: replyMessageId,  // Include message ID from Telegram response
+    });
+  } catch (error) {
+    console.error('Error handling close action:', error);
+  }
+};
 
 // Modify the API handler to capture the actual Telegram message ID
 export default async (req, res) => {
@@ -92,7 +124,7 @@ export default async (req, res) => {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     const { action, chat_id, reply_to, ...data } = req.body;
-
+    
     // Ensure valid action
     if (!['open', 'update', 'close'].includes(action)) {
       throw new Error('Invalid action type');
@@ -101,18 +133,18 @@ export default async (req, res) => {
     // Handle message creation based on action type
     const message = createMessage({ action, ...data });
 
-    // Determine if reply_to_message_id is needed for 'update' and 'close'
-    let replyToMessageId;
-    
-    if (action === 'open') {
-      // Send message to Telegram and capture the response to get the message_id
+    // Handle 'open' or 'update' actions
+    if (action === 'open' || action === 'update') {
+      const replyToMessageId = action === 'open' ? undefined : reply_to;
+
+      // Send the message to Telegram
       const tgResponse = await axios.post(
         `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
         {
           chat_id: TELEGRAM_CHAT_ID,
           text: message,
           parse_mode: 'Markdown',
-          reply_to_message_id: undefined
+          reply_to_message_id: replyToMessageId,
         },
         { timeout: 5000 }  // Timeout added for reliability
       );
@@ -131,38 +163,19 @@ export default async (req, res) => {
         status: 'success',
         message_id: telegramMessageId  // Return the correct message_id
       });
+    }
 
-    } else if (action === 'close') {
-      // Fetch the message_id from Notion for the given order ID
-      const messageId = await getMessageIdFromNotion(data.position);
-
-      if (messageId === null) {
-        return res.status(404).json({ error: 'Order not found in Notion' });
-      }
-
-      // Send message to Telegram and reply to the correct message using the message_id
-      const tgResponse = await axios.post(
-        `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
-        {
-          chat_id: TELEGRAM_CHAT_ID,
-          text: message,
-          parse_mode: 'Markdown',
-          reply_to_message_id: messageId  // Reply to the original message using the correct message_id
-        },
-        { timeout: 5000 }
-      );
-
-      res.status(200).json({
-        status: 'success',
-        message_id: tgResponse.data.result.message_id  // Return the new message ID for the close action
-      });
+    // Handle 'close' action specifically
+    if (action === 'close') {
+      await handleCloseAction(data);
+      res.status(200).json({ status: 'success' });
     }
 
   } catch (error) {
     // Enhanced error logging
     console.error('Full error stack:', error.stack);
     console.error('Request body:', req.body);
-
+    
     res.status(500).json({
       error: 'Internal Server Error',
       details: error.message,
