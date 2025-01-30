@@ -41,25 +41,23 @@ const createMessage = (data) => {
 
 // Notion 데이터베이스 업데이트
 const updateNotion = async (data) => {
-  // 기존 데이터를 가져오기
-  const currentData = await getCurrentNotionData(data.position);
-
   const properties = {
-    'Order ID': { number: data.position || currentData.position },
-    'Action': { select: { name: data.action || currentData.action }},
-    'Symbol': { title: [{ text: { content: data.symbol || currentData.symbol }}] },
-    'Volume': { number: data.volume || currentData.volume },
-    'Price': { number: data.price || currentData.price },
-    'SL': { number: data.sl || currentData.sl },
-    'TP': { number: data.tp || currentData.tp },
-    'Profit': { number: data.profit || currentData.profit },
-    'Balance': { number: data.balance || currentData.balance },
-    'Message ID': { number: data.messageId || currentData.messageId },
-    ...(data.outPrice !== undefined && { 'Outprice': { number: data.outPrice || currentData.outPrice }}) // Closing price handling
+    'Order ID': { number: data.position || 0 },
+    'Action': { select: { name: data.action }},
+    ...(data.direction && { 'Type': { select: { name: data.direction }}}),
+    'Symbol': { title: [{ text: { content: data.symbol || '' }}] },
+    'Volume': { number: data.volume || 0 },
+    'Price': { number: data.price || 0 },
+    'SL': { number: data.sl || 0 },
+    'TP': { number: data.tp || 0 },
+    'Profit': { number: data.profit || 0 },
+    'Balance': { number: data.balance },
+    ...(data.messageId && { 'Message ID': { number: data.messageId }}) // Don't update messageId
   };
 
-  console.log(`Saving to Notion for Order ID: ${data.position}, messageId: ${data.messageId}`);
+  console.log(`Updating Notion for Order ID: ${data.position}`);
 
+  // Find the page and update it
   const response = await notion.databases.query({
     database_id: NOTION_DB_ID,
     filter: {
@@ -71,55 +69,38 @@ const updateNotion = async (data) => {
   });
 
   if (response.results.length > 0) {
-    const pageId = response.results[0].id;
-    console.log(`Found existing page with Order ID: ${data.position}, updating...`);
-
     await notion.pages.update({
-      page_id: pageId,
-      properties,
+      page_id: response.results[0].id,
+      properties
     });
-
-    console.log(`Page updated successfully for Order ID: ${data.position}`);
   } else {
-    console.log(`No existing page found for Order ID: ${data.position}, creating new one.`);
-
-    await notion.pages.create({
-      parent: { database_id: NOTION_DB_ID },
-      properties,
-    });
+    console.error(`Order ID ${data.position} not found in Notion.`);
   }
 };
 
-// 기존 Notion 데이터 가져오기
-const getCurrentNotionData = async (orderId) => {
-  const response = await notion.databases.query({
-    database_id: NOTION_DB_ID,
-    filter: {
-      property: 'Order ID',
-      number: {
-        equals: orderId
-      }
-    }
+// Create a new page in Notion for the initial order open action
+const createNotionPage = async (data) => {
+  const properties = {
+    'Order ID': { number: data.position || 0 },
+    'Action': { select: { name: 'open' }},
+    'Symbol': { title: [{ text: { content: data.symbol || '' }}] },
+    'Volume': { number: data.volume || 0 },
+    'Price': { number: data.price || 0 },
+    'SL': { number: data.sl || 0 },
+    'TP': { number: data.tp || 0 },
+    'Profit': { number: 0 }, // Initially profit is 0
+    'Balance': { number: data.balance || 0 },
+    // Don't include Message ID in create action, will be added later
+  };
+
+  console.log(`Creating Notion page for Order ID: ${data.position}`);
+
+  const response = await notion.pages.create({
+    parent: { database_id: NOTION_DB_ID },
+    properties
   });
 
-  if (response.results.length > 0) {
-    const page = response.results[0];
-    return {
-      position: page.properties['Order ID'].number || 0,
-      action: page.properties['Action'].select?.name || '',
-      symbol: page.properties['Symbol'].title[0]?.text.content || '',
-      volume: page.properties['Volume'].number || 0,
-      price: page.properties['Price'].number || 0,
-      sl: page.properties['SL'].number || 0,
-      tp: page.properties['TP'].number || 0,
-      profit: page.properties['Profit'].number || 0,
-      balance: page.properties['Balance'].number || 0,
-      messageId: page.properties['Message ID'].number || 0,
-      outPrice: page.properties['Outprice']?.number || 0
-    };
-  }
-
-  return {}; // 빈 객체 반환 (없을 경우)
+  return response;
 };
 
 // Function to get Message ID from Notion based on Order ID
@@ -134,22 +115,17 @@ const getMessageIdFromNotion = async (orderId) => {
     }
   });
 
-  console.log(`Notion query response for Order ID ${orderId}:`, response);
-
   if (response.results.length > 0) {
-    const messageId = response.results[0].properties['Message ID'].number;
-    console.log(`Found message ID for Order ID ${orderId}:`, messageId);
-    return messageId;
+    return response.results[0].properties['Message ID'].number;
   }
 
-  console.log(`No message found for Order ID ${orderId}`);
   return null;
 };
 
 const handleCloseAction = async (data) => {
   try {
     const replyMessageId = await getMessageIdFromNotion(data.position);
-    
+
     if (!replyMessageId) {
       console.log(`No previous message found for Order: #${data.position}`);
       return;
@@ -188,7 +164,7 @@ export default async (req, res) => {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     const { action, chat_id, reply_to, ...data } = req.body;
-    
+
     if (!['open', 'update', 'close'].includes(action)) {
       throw new Error('Invalid action type');
     }
@@ -197,8 +173,36 @@ export default async (req, res) => {
 
     const message = createMessage({ action, ...data });
 
-    if (action === 'open' || action === 'update') {
-      const replyToMessageId = action === 'open' ? undefined : reply_to;
+    if (action === 'open') {
+      // Create a new page for the open action
+      const tgResponse = await axios.post(
+        `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
+        {
+          chat_id: TELEGRAM_CHAT_ID,
+          text: message,
+          parse_mode: 'Markdown',
+        },
+        { timeout: 5000 }
+      );
+
+      const telegramMessageId = tgResponse.data.result.message_id;
+
+      // Create Notion page for the new order
+      const notionPage = await createNotionPage({
+        ...data,
+        messageId: telegramMessageId
+      });
+
+      res.status(200).json({
+        status: 'success',
+        message_id: telegramMessageId,
+        notion_page_id: notionPage.id
+      });
+    }
+
+    if (action === 'update' || action === 'close') {
+      // Handle update and close actions
+      const replyToMessageId = action === 'update' ? reply_to : undefined;
 
       const tgResponse = await axios.post(
         `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
@@ -216,7 +220,7 @@ export default async (req, res) => {
       await updateNotion({
         ...data,
         action,
-        messageId: telegramMessageId
+        messageId: data.messageId || telegramMessageId
       });
 
       res.status(200).json({
@@ -227,7 +231,7 @@ export default async (req, res) => {
 
     if (action === 'close') {
       console.log(`Close action triggered for Order: #${data.position}`);
-      
+
       await handleCloseAction(data);
       res.status(200).json({ status: 'success' });
     }
@@ -235,7 +239,7 @@ export default async (req, res) => {
   } catch (error) {
     console.error('Full error stack:', error.stack);
     console.error('Request body:', req.body);
-    
+
     res.status(500).json({
       error: 'Internal Server Error',
       details: error.message,
