@@ -90,7 +90,7 @@ const createNotionPage = async (data) => {
     'TP': { number: data.tp || 0 },
     'Profit': { number: 0 }, // Initially profit is 0
     'Balance': { number: data.balance || 0 },
-    // Don't include Message ID in create action, will be added later
+    ...(data.direction && { 'Type': { select: { name: data.direction }}}), // Save direction as type
   };
 
   console.log(`Creating Notion page for Order ID: ${data.position}`);
@@ -190,6 +190,13 @@ export default async (req, res) => {
       // Create Notion page for the new order
       const notionPage = await createNotionPage({
         ...data,
+        messageId: telegramMessageId
+      });
+
+      // Update Notion with the Message ID
+      await updateNotion({
+        ...data,
+        action: 'open',
         messageId: telegramMessageId
       });
 
