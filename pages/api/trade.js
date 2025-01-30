@@ -36,7 +36,7 @@ const createMessage = (data) => {
 📉 *Position Closed* 📉
 ┌────────────────
 │ ▪ Order: #${data.position || 'N/A'}
-│ ▪ Profit: $${(data.profit ?? 0).toFixed(2)}
+│ ▪ Profit: ${data.profit} pips
 │ ▪ Balance: $${(data.balance ?? 0).toFixed(2)}
 └────────────────`
   };
@@ -54,9 +54,9 @@ const updateNotion = async (data) => {
     'Price': { number: data.price || 0 },
     'SL': { number: data.sl || 0 },
     'TP': { number: data.tp || 0 },
-    'Profit': { number: data.profit || 0 },
+    'Profit (Pips)': { number: data.profit || 0 },  // Change profit to Pips in Notion
     'Balance': { number: data.balance },
-    'Message ID': { number: data.messageId || 0 }  // Ensure 'Message ID' is a number property
+    'Message ID': { number: data.messageId || 0 }
   };
 
   await notion.pages.create({
@@ -92,7 +92,7 @@ const handleCloseAction = async (data) => {
     const message = createMessage({
       action: 'close',
       position: data.position,
-      profit: data.profit,
+      profit: data.profit,  // Use profit in pips
       balance: data.balance,
     });
 
