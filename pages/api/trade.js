@@ -8,14 +8,13 @@ const NOTION_DB_ID = process.env.NOTION_DB_ID;
 const TELEGRAM_CHAT_ID = -1002304096819;
 const notion = new Client({ auth: NOTION_API_KEY });
 
-// 텔레그램 메시지 생성
 const createMessage = (data) => {
   const templates = {
     open: `
 📈 *New Position Opened* 📈
 ┌────────────────
 │ ▪ Order: #${data.position || 'N/A'}
-│ ▪ Symbol: ${data.symbol || 'N/A'}
+│ ▪ Symbol: ${data.symbol || 'N/A'} (${data.direction || 'N/A'})
 │ ▪ Volume: ${(data.volume ?? 0).toFixed(2)} lots
 │ ▪ Price: ${(data.price ?? 0).toFixed(5)}
 │ ▪ Balance: $${(data.balance ?? 0).toFixed(2)}
