@@ -25,8 +25,8 @@ const createMessage = (data) => {
 🔄 *Position Updated* 🔄
 ┌────────────────
 │ ▪ Order: #${data.position || 'N/A'}
-│ ▪ New SL: ${(data.sl ?? 0).toFixed(5) || 'None'}
-│ ▪ New TP: ${(data.tp ?? 0).toFixed(5) || 'None'}
+│ ▪ SL: ${(data.sl ?? 0).toFixed(5) || 'None'}
+│ ▪ TP: ${(data.tp ?? 0).toFixed(5) || 'None'}
 │ ▪ Balance: $${(data.balance ?? 0).toFixed(2)}
 └────────────────`,
 
@@ -137,6 +137,9 @@ export default async (req, res) => {
       throw new Error('Invalid action type');
     }
 
+    // Log to check if the action is correctly recognized
+    console.log(`Received action: ${action}, data: `, data);
+
     // Handle message creation based on action type
     const message = createMessage({ action, ...data });
 
@@ -174,6 +177,9 @@ export default async (req, res) => {
 
     // Handle 'close' action specifically
     if (action === 'close') {
+      // Debug log to check when close action is triggered
+      console.log(`Close action triggered for Order: #${data.position}`);
+      
       await handleCloseAction(data);
       res.status(200).json({ status: 'success' });
     }
@@ -190,3 +196,4 @@ export default async (req, res) => {
     });
   }
 };
+
