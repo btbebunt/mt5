@@ -52,7 +52,8 @@ const updateNotion = async (data) => {
     ...(data.tp && { 'TP': { number: data.tp || 0 } }),
     ...(data.profit && { 'Profit': { number: data.profit || 0 } }),
     ...(data.balance && { 'Balance': { number: data.balance } }),
-    ...(data.messageId && { 'Message ID': { number: data.messageId } }) // Don't update messageId
+    ...(data.messageId && { 'Message ID': { number: data.messageId } }), // Don't update messageId
+    ...(data.outprice && { 'Outprice': { number: data.outprice } })
   };
 
   console.log(`Updating Notion for Order ID: ${data.position}`);
@@ -139,6 +140,7 @@ const handleCloseAction = async (data) => {
       position: data.position,
       profit: data.profit,
       balance: data.balance,
+      outprice: data.outprice
     });
 
     const tgMessageID = await updateNotion({
