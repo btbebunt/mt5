@@ -67,7 +67,7 @@ const updateNotion = async (data) => {
 };
 
 
-// Modify the API handler (send the 'update' action properly)
+// Modify the API handler to capture the actual Telegram message ID
 export default async (req, res) => {
   try {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -85,7 +85,7 @@ export default async (req, res) => {
     // Determine if reply_to_message_id is needed for 'update' and 'close'
     const replyToMessageId = action === 'open' ? undefined : reply_to;
 
-    // Send message to Telegram
+    // Send message to Telegram and capture the response to get the message_id
     const tgResponse = await axios.post(
       `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
       {
@@ -97,16 +97,19 @@ export default async (req, res) => {
       { timeout: 5000 }  // Timeout added for reliability
     );
 
-    // Update Notion
+    // Capture the message_id from the Telegram response
+    const telegramMessageId = tgResponse.data.result.message_id;
+
+    // Update Notion with the message_id from Telegram
     await updateNotion({
       ...data,
       action,
-      messageId: tgResponse.data.result.message_id  // Save the message ID
+      messageId: telegramMessageId  // Save the actual message_id from Telegram
     });
 
     res.status(200).json({
       status: 'success',
-      message_id: tgResponse.data.result.message_id 
+      message_id: telegramMessageId  // Return the correct message_id
     });
   } catch (error) {
     // Enhanced error logging
@@ -120,3 +123,4 @@ export default async (req, res) => {
     });
   }
 };
+
