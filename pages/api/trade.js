@@ -18,8 +18,6 @@ const createMessage = (data) => {
 │ ▪ Symbol: ${data.symbol || 'N/A'}
 │ ▪ Volume: ${(data.volume ?? 0).toFixed(2)} lots
 │ ▪ Price: ${(data.price ?? 0).toFixed(5)}
-│ ▪ SL: ${(data.sl ?? 0).toFixed(5) || 'None'}
-│ ▪ TP: ${(data.tp ?? 0).toFixed(5) || 'None'}
 │ ▪ Balance: $${(data.balance ?? 0).toFixed(2)}
 └────────────────`,
 
