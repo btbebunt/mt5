@@ -83,6 +83,7 @@ const updateNotion = async (data) => {
 
 // Function to get Message ID from Notion based on Order ID (position)
 const getMessageIdFromNotion = async (orderId) => {
+  console.log('Fetching message ID for Order:', orderId);  // Log to verify
   const response = await notion.databases.query({
     database_id: NOTION_DB_ID,
     filter: {
@@ -94,17 +95,23 @@ const getMessageIdFromNotion = async (orderId) => {
   });
 
   if (response.results.length > 0) {
-    return response.results[0].properties['Message ID'].number;
+    const messageId = response.results[0].properties['Message ID'].number;
+    console.log('Found Message ID:', messageId);  // Log to verify
+    return messageId;
   }
 
+  console.log('No Message ID found for Order:', orderId);  // Log to verify
   return null;
 };
 
 // Function to handle 'close' action and update Notion
 const handleCloseAction = async (data) => {
   try {
+    console.log('Handling close action for Order:', data.position);  // Log to verify
+
     // Calculate profit in pips based on symbol and price
     const profitInPips = calculatePips(data.symbol, data.openPrice, data.closePrice);
+    console.log('Calculated profit in pips:', profitInPips);  // Log to verify
 
     const replyMessageId = await getMessageIdFromNotion(data.position);
     
@@ -116,7 +123,7 @@ const handleCloseAction = async (data) => {
     });
 
     // Send the close message to Telegram, replying to the original message if it exists
-    await axios.post(
+    const tgResponse = await axios.post(
       `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
       {
         chat_id: TELEGRAM_CHAT_ID,
@@ -125,6 +132,8 @@ const handleCloseAction = async (data) => {
         reply_to_message_id: replyMessageId || undefined,  // Only reply if message ID exists
       }
     );
+
+    console.log('Telegram Response:', tgResponse.data);  // Log to verify Telegram response
 
     // Update Notion with the close action details
     await updateNotion({
