@@ -57,11 +57,15 @@ const updateNotion = async (data) => {
     'Message ID': { number: data.messageId || 0 }  // Ensure 'Message ID' is a number property
   };
 
+  // Log data before saving to Notion
+  console.log(`Saving to Notion for Order ID: ${data.position}, messageId: ${data.messageId}`);
+
   await notion.pages.create({
     parent: { database_id: NOTION_DB_ID },
     properties
   });
 };
+
 
 // Function to get Message ID from Notion based on Order ID (position)
 const getMessageIdFromNotion = async (orderId) => {
@@ -75,12 +79,19 @@ const getMessageIdFromNotion = async (orderId) => {
     }
   });
 
+  // Log the response to see the results
+  console.log(`Notion query response for Order ID ${orderId}:`, response);
+
   if (response.results.length > 0) {
-    return response.results[0].properties['Message ID'].number;
+    const messageId = response.results[0].properties['Message ID'].number;
+    console.log(`Found message ID for Order ID ${orderId}:`, messageId);
+    return messageId;
   }
 
+  console.log(`No message found for Order ID ${orderId}`);
   return null;
 };
+
 
 const handleCloseAction = async (data) => {
   try {
