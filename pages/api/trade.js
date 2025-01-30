@@ -8,8 +8,12 @@ const NOTION_DB_ID = process.env.NOTION_DB_ID;
 const TELEGRAM_CHAT_ID = -1002304096819;
 const notion = new Client({ auth: NOTION_API_KEY });
 
-// Helper function to calculate pips
 const calculatePips = (symbol, openPrice, closePrice) => {
+  if (!symbol) {
+    console.error('Symbol is missing or undefined');
+    return 0;  // Return a default value (e.g., 0) if symbol is invalid
+  }
+
   let pipValue = 0;
 
   // Check if the symbol is a major Forex pair (typically 4 decimal places)
@@ -23,6 +27,7 @@ const calculatePips = (symbol, openPrice, closePrice) => {
 
   return pipValue;
 };
+
 
 // 텔레그램 메시지 생성
 const createMessage = (data) => {
