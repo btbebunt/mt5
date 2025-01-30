@@ -44,6 +44,7 @@ const updateNotion = async (data) => {
   const properties = {
     'Order ID': { number: data.position || 0 },
     'Action': { select: { name: data.action }},
+    'Type': { select: { name: data.direction }},
     'Symbol': { title: [{ text: { content: data.symbol+data.direction || '' }}] },
     'Volume': { number: data.volume || 0 },
     'Price': { number: data.price || 0 },
