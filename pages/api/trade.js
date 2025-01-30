@@ -209,7 +209,6 @@ export default async (req, res) => {
 
     if (action === 'update' || action === 'close') {
 
-      const notionRow = await nti
       // Handle update and close actions
       const replyToMessageId = action === 'update' ? reply_to : undefined;
 
