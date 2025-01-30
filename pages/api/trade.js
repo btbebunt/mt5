@@ -43,16 +43,16 @@ const createMessage = (data) => {
 const updateNotion = async (data) => {
   const properties = {
     'Order ID': { number: data.position || 0 },
-    ...(data.action && {'Action': { select: { name: data.action }}}),
-    ...(data.direction && { 'Type': { select: { name: data.direction }}}),
-     ...(data.symbol && {'Symbol': { title: [{ text: { content: data.symbol || '' }}]} }),
-    'Volume': { number: data.volume || 0 },
-    'Price': { number: data.price || 0 },
-    'SL': { number: data.sl || 0 },
-    'TP': { number: data.tp || 0 },
-    'Profit': { number: data.profit || 0 },
-    'Balance': { number: data.balance },
-    ...(data.messageId && { 'Message ID': { number: data.messageId }}) // Don't update messageId
+    ...(data.action && { 'Action': { select: { name: data.action } } }),
+    ...(data.direction && { 'Type': { select: { name: data.direction } } }),
+    ...(data.symbol && { 'Symbol': { title: [{ text: { content: data.symbol || '' } }] } }),
+    ...(data.volume && { 'Volume': { number: data.volume || 0 } }),
+    ...(data.price && { 'Price': { number: data.price || 0 } }),
+    ...(data.sl && { 'SL': { number: data.sl || 0 } }),
+    ...(data.tp && { 'TP': { number: data.tp || 0 } }),
+    ...(data.profit && { 'Profit': { number: data.profit || 0 } }),
+    ...(data.balance && { 'Balance': { number: data.balance } }),
+    ...(data.messageId && { 'Message ID': { number: data.messageId } }) // Don't update messageId
   };
 
   console.log(`Updating Notion for Order ID: ${data.position}`);
@@ -73,8 +73,11 @@ const updateNotion = async (data) => {
       page_id: response.results[0].id,
       properties
     });
+
+    return response.results[0].messageId;
   } else {
     console.error(`Order ID ${data.position} not found in Notion.`);
+    return undefined;
   }
 };
 
@@ -82,15 +85,15 @@ const updateNotion = async (data) => {
 const createNotionPage = async (data) => {
   const properties = {
     'Order ID': { number: data.position || 0 },
-    'Action': { select: { name: 'open' }},
-    'Symbol': { title: [{ text: { content: data.symbol || '' }}] },
+    'Action': { select: { name: 'open' } },
+    'Symbol': { title: [{ text: { content: data.symbol || '' } }] },
     'Volume': { number: data.volume || 0 },
     'Price': { number: data.price || 0 },
     'SL': { number: data.sl || 0 },
     'TP': { number: data.tp || 0 },
     'Profit': { number: 0 }, // Initially profit is 0
     'Balance': { number: data.balance || 0 },
-    ...(data.direction && { 'Type': { select: { name: data.direction }}}), // Save direction as type
+    ...(data.direction && { 'Type': { select: { name: data.direction } } }), // Save direction as type
   };
 
   console.log(`Creating Notion page for Order ID: ${data.position}`);
@@ -138,21 +141,21 @@ const handleCloseAction = async (data) => {
       balance: data.balance,
     });
 
+    const tgMessageID = await updateNotion({
+      ...data,
+      action: 'close',
+      messageId: replyMessageId,
+    });
+
     await axios.post(
       `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
       {
         chat_id: TELEGRAM_CHAT_ID,
         text: message,
         parse_mode: 'Markdown',
-        reply_to_message_id: replyMessageId || undefined,
+        reply_to_message_id: tgMessageID,
       }
     );
-
-    await updateNotion({
-      ...data,
-      action: 'close',
-      messageId: replyMessageId,
-    });
 
   } catch (error) {
     console.error('Error handling close action:', error);
@@ -210,7 +213,8 @@ export default async (req, res) => {
     if (action === 'update' || action === 'close') {
 
       // Handle update and close actions
-      const replyToMessageId = action === 'update' ? reply_to : undefined;
+      // const replyToMessageId = action === 'update' ? reply_to : undefined;
+      const replyMessageId = await getMessageIdFromNotion(data.position);
 
       const tgResponse = await axios.post(
         `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
@@ -218,7 +222,7 @@ export default async (req, res) => {
           chat_id: TELEGRAM_CHAT_ID,
           text: message,
           parse_mode: 'Markdown',
-          reply_to_message_id: replyToMessageId,
+          reply_to_message_id: replyMessageId,
         },
         { timeout: 5000 }
       );
