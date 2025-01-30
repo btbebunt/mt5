@@ -41,24 +41,25 @@ const createMessage = (data) => {
 
 // Notion 데이터베이스 업데이트
 const updateNotion = async (data) => {
+  // 기존 데이터를 가져오기
+  const currentData = await getCurrentNotionData(data.position);
+
   const properties = {
-    'Order ID': { number: data.position || 0 },
-    'Action': { select: { name: data.action }},
-    ...(data.direction && { 'Type': { select: { name: data.direction }}}),
-    'Symbol': { title: [{ text: { content: data.symbol || '' }}] },
-    'Volume': { number: data.volume || 0 },
-    'Price': { number: data.price || 0 },
-    'SL': { number: data.sl || 0 },
-    'TP': { number: data.tp || 0 },
-    'Profit': { number: data.profit || 0 },
-    'Balance': { number: data.balance },
-    'Message ID': { number: data.messageId || 0 },
-    ...(data.outPrice !== undefined && { 'Outprice': { number: data.outPrice || 0 }}) // Closing price handling
+    'Order ID': { number: data.position || currentData.position },
+    'Action': { select: { name: data.action || currentData.action }},
+    'Symbol': { title: [{ text: { content: data.symbol || currentData.symbol }}] },
+    'Volume': { number: data.volume || currentData.volume },
+    'Price': { number: data.price || currentData.price },
+    'SL': { number: data.sl || currentData.sl },
+    'TP': { number: data.tp || currentData.tp },
+    'Profit': { number: data.profit || currentData.profit },
+    'Balance': { number: data.balance || currentData.balance },
+    'Message ID': { number: data.messageId || currentData.messageId },
+    ...(data.outPrice !== undefined && { 'Outprice': { number: data.outPrice || currentData.outPrice }}) // Closing price handling
   };
 
   console.log(`Saving to Notion for Order ID: ${data.position}, messageId: ${data.messageId}`);
 
-  // Try to find an existing page to update
   const response = await notion.databases.query({
     database_id: NOTION_DB_ID,
     filter: {
@@ -73,7 +74,6 @@ const updateNotion = async (data) => {
     const pageId = response.results[0].id;
     console.log(`Found existing page with Order ID: ${data.position}, updating...`);
 
-    // Update existing page
     await notion.pages.update({
       page_id: pageId,
       properties,
@@ -83,12 +83,43 @@ const updateNotion = async (data) => {
   } else {
     console.log(`No existing page found for Order ID: ${data.position}, creating new one.`);
 
-    // If no existing page, create a new one
     await notion.pages.create({
       parent: { database_id: NOTION_DB_ID },
       properties,
     });
   }
+};
+
+// 기존 Notion 데이터 가져오기
+const getCurrentNotionData = async (orderId) => {
+  const response = await notion.databases.query({
+    database_id: NOTION_DB_ID,
+    filter: {
+      property: 'Order ID',
+      number: {
+        equals: orderId
+      }
+    }
+  });
+
+  if (response.results.length > 0) {
+    const page = response.results[0];
+    return {
+      position: page.properties['Order ID'].number || 0,
+      action: page.properties['Action'].select?.name || '',
+      symbol: page.properties['Symbol'].title[0]?.text.content || '',
+      volume: page.properties['Volume'].number || 0,
+      price: page.properties['Price'].number || 0,
+      sl: page.properties['SL'].number || 0,
+      tp: page.properties['TP'].number || 0,
+      profit: page.properties['Profit'].number || 0,
+      balance: page.properties['Balance'].number || 0,
+      messageId: page.properties['Message ID'].number || 0,
+      outPrice: page.properties['Outprice']?.number || 0
+    };
+  }
+
+  return {}; // 빈 객체 반환 (없을 경우)
 };
 
 // Function to get Message ID from Notion based on Order ID
