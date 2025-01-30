@@ -43,9 +43,9 @@ const createMessage = (data) => {
 const updateNotion = async (data) => {
   const properties = {
     'Order ID': { number: data.position || 0 },
-    'Action': { select: { name: data.action }},
+    ...(data.action && {'Action': { select: { name: data.action }}}),
     ...(data.direction && { 'Type': { select: { name: data.direction }}}),
-    'Symbol': { title: [{ text: { content: data.symbol || '' }}] },
+     ...(data.symbol && {'Symbol': { title: [{ text: { content: data.symbol || '' }}]} }),
     'Volume': { number: data.volume || 0 },
     'Price': { number: data.price || 0 },
     'SL': { number: data.sl || 0 },
@@ -208,6 +208,8 @@ export default async (req, res) => {
     }
 
     if (action === 'update' || action === 'close') {
+
+      const notionRow = await nti
       // Handle update and close actions
       const replyToMessageId = action === 'update' ? reply_to : undefined;
 
