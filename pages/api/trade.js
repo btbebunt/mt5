@@ -72,7 +72,7 @@ const getMessageIdFromNotion = async (orderId) => {
     filter: {
       property: 'Order ID',
       number: {
-        equal: orderId
+        equals: orderId  // Ensure the filter structure is correct
       }
     }
   });
@@ -81,9 +81,10 @@ const getMessageIdFromNotion = async (orderId) => {
     // Extract the message ID from Notion data
     return response.results[0].properties['Message ID'].number;
   }
-  
+
   return null;  // No message found for this order ID
 };
+
 
 // Modify the API handler to capture the actual Telegram message ID
 export default async (req, res) => {
