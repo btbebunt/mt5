@@ -14,7 +14,7 @@ const createMessage = (data) => {
     open: `
 📈 *New Position Opened* 📈
 ┌────────────────
-│ ▪ Order: #${data.order || 'N/A'}
+│ ▪ Order: #${data.position || 'N/A'}
 │ ▪ Symbol: ${data.symbol || 'N/A'}
 │ ▪ Volume: ${(data.volume ?? 0).toFixed(2)} lots
 │ ▪ Price: ${(data.price ?? 0).toFixed(5)}
@@ -26,7 +26,7 @@ const createMessage = (data) => {
     update: `
 🔄 *Position Updated* 🔄
 ┌────────────────
-│ ▪ Order: #${data.order || 'N/A'}
+│ ▪ Order: #${data.position || 'N/A'}
 │ ▪ New SL: ${(data.sl ?? 0).toFixed(5) || 'None'}
 │ ▪ New TP: ${(data.tp ?? 0).toFixed(5) || 'None'}
 │ ▪ Balance: $${(data.balance ?? 0).toFixed(2)}
@@ -35,7 +35,7 @@ const createMessage = (data) => {
     close: `
 📉 *Position Closed* 📉
 ┌────────────────
-│ ▪ Order: #${data.order || 'N/A'}
+│ ▪ Order: #${data.position || 'N/A'}
 │ ▪ Profit: $${(data.profit ?? 0).toFixed(2)}
 │ ▪ Balance: $${(data.balance ?? 0).toFixed(2)}
 └────────────────`
