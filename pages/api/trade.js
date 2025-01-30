@@ -53,7 +53,7 @@ const updateNotion = async (data) => {
     'Profit': { number: data.profit || 0 },
     'Balance': { number: data.balance },
     'Message ID': { number: data.messageId || 0 },
-    'OutPrice': { number: data.outprice || 0 }  // For storing Close Price
+    'Outprice': { number: data.outprice || 0 }  // For storing Close Price
   };
 
   console.log(`Saving to Notion for Order ID: ${data.position}, messageId: ${data.messageId}`);
