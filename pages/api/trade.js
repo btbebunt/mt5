@@ -219,19 +219,19 @@ export default async (req, res) => {
           chat_id: TELEGRAM_CHAT_ID,
           text: message,
           parse_mode: 'Markdown',
-          reply_to_message_id: replyMessageId,
+          reply_to_message_id: tgMessageID,
         },
         { timeout: 5000 }
       );
-      console.log('Reply Message ID:', replyMessageId, typeof replyMessageId);
-
+    
       const telegramMessageId = tgResponse.data.result.message_id;
     
       await updateNotion({
         ...data,
         action,
       });
-    
+      console.log('Reply Message ID:', replyMessageId, typeof replyMessageId);
+
       res.status(200).json({
         status: 'success',
         message_id: telegramMessageId
