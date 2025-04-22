@@ -222,7 +222,7 @@ export default async (req, res) => {
           chat_id: TELEGRAM_CHAT_ID,
           text: message,
           parse_mode: 'Markdown',
-          reply_to_message_id: replyMessageId,
+          reply_to_message_id: Number(replyMessageId),
         },
         { timeout: 5000 }
       );
