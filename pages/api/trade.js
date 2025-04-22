@@ -210,12 +210,9 @@ export default async (req, res) => {
       });
     }
 
-    if (action === 'update' || action === 'close') {
-
-      // Handle update and close actions
-      // const replyToMessageId = action === 'update' ? reply_to : undefined;
+    if (action === 'update') {
       const replyMessageId = await getMessageIdFromNotion(data.position);
-
+    
       const tgResponse = await axios.post(
         `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`,
         {
@@ -226,27 +223,27 @@ export default async (req, res) => {
         },
         { timeout: 5000 }
       );
-
+    
       const telegramMessageId = tgResponse.data.result.message_id;
-
+    
       await updateNotion({
         ...data,
         action,
-        // messageId: data.messageId || telegramMessageId
       });
-
+    
       res.status(200).json({
         status: 'success',
         message_id: telegramMessageId
       });
     }
-
+    
     if (action === 'close') {
       console.log(`Close action triggered for Order: #${data.position}`);
-
       await handleCloseAction(data);
-      res.status(200).json({ status: 'success' });
+      // Don't send a second response here if already sent in handleCloseAction
+      return; 
     }
+    
 
   } catch (error) {
     console.error('Full error stack:', error.stack);
