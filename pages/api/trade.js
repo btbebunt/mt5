@@ -73,7 +73,7 @@ const updateNotion = async (data) => {
       properties
     });
 
-    return response.results[0].messageId;
+    return response.results[0].properties['Message ID']?.number;
   } else {
     console.error(`Order ID ${data.position} not found in Notion.`);
     return undefined;
