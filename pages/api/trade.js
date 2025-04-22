@@ -223,7 +223,8 @@ export default async (req, res) => {
         },
         { timeout: 5000 }
       );
-    
+      console.log('Reply Message ID:', replyMessageId, typeof replyMessageId);
+
       const telegramMessageId = tgResponse.data.result.message_id;
     
       await updateNotion({
